@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InsureVerse - AR-Powered Insurance Platform</title>
+
+  <!-- Libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+  <!-- TensorFlow.js + MobileNet for on-device object recognition -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      overflow-x: hidden;
+    }
+    /* Navigation */
+    .navbar {
+      position: fixed; top: 0; width: 100%; background: rgba(0,0,0,0.9); backdrop-filter: blur(20px);
+      z-index: 1000; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center;
+      transition: all 0.3s ease;
+    }
+    .logo { font-size: 1.8rem; font-weight: bold; background: linear-gradient(45deg,#00f5ff,#ff00ff);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-menu { display: flex; gap: 1rem; list-style: none; flex-wrap: wrap; }
+    .nav-link { color: #fff; text-decoration: none; padding: 0.5rem 1rem; border-radius: 25px; transition: all 0.3s ease; position: relative; overflow: hidden; font-size: 0.9rem; }
+    .nav-link:hover { background: linear-gradient(45deg,#00f5ff,#ff00ff); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,245,255,0.3); }
+
+    /* Pages */
+    .page { min-height: 100vh; padding: 6rem 2rem 2rem; display: none; position: relative; }
+    .page.active { display: block; }
+
+    /* Hero */
+    .hero { text-align: center; padding: 4rem 0; position: relative; }
+    .hero h1 { font-size: 3.2rem; margin-bottom: 1rem; background: linear-gradient(45deg,#00f5ff,#ff00ff,#00ff00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: glow 2s ease-in-out infinite alternate; }
+    @keyframes glow { from { text-shadow: 0 0 20px rgba(0,245,255,0.5); } to { text-shadow: 0 0 40px rgba(255,0,255,0.8); } }
+    .hero-subtitle { font-size: 1.2rem; margin-bottom: 2rem; opacity: 0.95; }
+
+    /* AR Demo */
+    .ar-demo { width: 100%; height: 400px; background: rgba(0,0,0,0.3); border-radius: 20px; margin: 2rem 0; display: flex; align-items: center; justify-content: center; border: 2px solid rgba(0,245,255,0.3); position: relative; overflow: hidden; }
+
+    /* AR Overlay */
+    .ar-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 10000; display: none; flex-direction: column; }
+    .ar-camera-container { flex: 1; position: relative; overflow: hidden; }
+    #arCamera { width: 100%; height: 100%; object-fit: cover; }
+    .ar-info-panel { position: absolute; bottom: 20px; left: 20px; right: 20px; background: rgba(0,0,0,0.8); border-radius: 15px; padding: 1rem; transform: translateY(100%); transition: transform 0.3s ease; }
+    .ar-info-panel.show { transform: translateY(0); }
+    .ar-close { position: absolute; top: 20px; right: 20px; background: rgba(255,0,0,0.8); border: none; color: white; padding: 10px 15px; border-radius: 50%; cursor: pointer; font-size: 1.2rem; }
+
+    /* Cards */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap: 2rem; margin: 3rem 0; }
+    .feature-card { background: rgba(255,255,255,0.1); backdrop-filter: blur(20px); border-radius: 20px; padding: 2rem; text-align: center; transition: all 0.3s ease; border: 1px solid rgba(255,255,255,0.2); position: relative; overflow: hidden; cursor: pointer; }
+    .feature-card:hover { transform: translateY(-10px) scale(1.02); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+    .feature-icon { font-size: 3rem; margin-bottom: 1rem; color: #00f5ff; }
+
+    /* Car Game */
+    .game-canvas { width: 100%; height: 420px; border-radius: 15px; background: #000; position: relative; overflow: hidden; }
+    .car { position: absolute; bottom: 50px; left: 50%; width: 40px; height: 60px; background: linear-gradient(45deg,#ff0066,#00ff66); border-radius: 10px; transform: translateX(-50%); transition: left 0.08s ease; }
+    .obstacle { position: absolute; width: 40px; height: 40px; background: #ff4444; border-radius: 5px; }
+    .road-line { position: absolute; width: 4px; height: 40px; background: #fff; left: 50%; transform: translateX(-50%); }
+
+    /* Interactive */
+    .interactive-element { background: rgba(0,0,0,0.4); border-radius: 15px; padding: 2rem; margin: 2rem 0; border: 1px solid rgba(0,245,255,0.3); }
+
+    /* Buttons */
+    .btn { background: linear-gradient(45deg,#00f5ff,#ff00ff); color: white; border: none; padding: 1rem 1.2rem; border-radius: 50px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; position: relative; overflow: hidden; margin: 0.5rem; }
+    .btn:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,245,255,0.4); }
+
+    /* Inputs */
+    .input-group { margin: 1rem 0; }
+    .input-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+    .input-group input, .input-group select { width: 100%; padding: 0.8rem; border: 2px solid rgba(0,245,255,0.3); border-radius: 10px; background: rgba(0,0,0,0.3); color: #fff; font-size: 1rem; }
+    .input-group input:focus, .input-group select:focus { outline: none; border-color: #00f5ff; box-shadow: 0 0 10px rgba(0,245,255,0.3); }
+
+    /* Charts */
+    .chart-container { background: rgba(255,255,255,0.1); border-radius: 20px; padding: 2rem; margin: 2rem 0; height: 400px; }
+
+    /* Scanner */
+    .scanner-interface { background: rgba(0,0,0,0.8); border: 2px dashed rgba(0,245,255,0.5); border-radius: 20px; padding: 2rem; text-align: center; margin: 2rem 0; min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .scanner-result { background: rgba(0,255,0,0.1); border: 1px solid rgba(0,255,0,0.3); border-radius: 10px; padding: 1rem; margin-top: 1rem; display: none; width: 100%; max-width: 640px; }
+
+    /* Notification */
+    .notification { position: fixed; top: 100px; right: 20px; background: linear-gradient(45deg,#00f5ff,#ff00ff); color: white; padding: 1rem 1.5rem; border-radius: 10px; z-index: 9999; transform: translateX(400px); transition: transform 0.3s ease; }
+    .notification.show { transform: translateX(0); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 2.2rem; }
+      .nav-menu { flex-direction: column; gap: 0.5rem; }
+      .features-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="logo">InsureVerse</div>
+    <ul class="nav-menu">
+      <li><a href="#" class="nav-link" onclick="showPage('home')">Home</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('learn')">Learn</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('vehicle')">Vehicle</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('health')">Health</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('life')">Life</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('travel')">Travel</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('property')">Property</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('scanner')">Scanner</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('games')">Games</a></li>
+      <li><a href="#" class="nav-link" onclick="showPage('calculator')">Calculator</a></li>
+    </ul>
+  </nav>
+
+  <!-- AR Overlay -->
+  <div class="ar-overlay" id="arOverlay">
+    <button class="ar-close" onclick="closeAR()">&times;</button>
+    <div class="ar-camera-container">
+      <video id="arCamera" autoplay playsinline></video>
+      <div class="ar-info-panel" id="arInfoPanel">
+        <h3 id="arTitle">Scanning...</h3>
+        <p id="arDescription">Point your camera at an object to get insurance information</p>
+        <div id="arPremium" style="font-size:1.2rem;color:#00f5ff;margin-top:0.5rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification -->
+  <div class="notification" id="notification"></div>
+
+  <!-- HOME PAGE -->
+  <div class="page active" id="home">
+    <div class="hero">
+      <h1>Insurance Simplified with AR & AI</h1>
+      <p class="hero-subtitle">Experience the Future of Insurance Learning with Real AR Technology</p>
+
+      <div class="ar-demo">
+        <div style="text-align:center;z-index:1;">
+          <i class="fas fa-cube" style="font-size:4rem;color:#00f5ff;animation:float 3s ease-in-out infinite;"></i>
+          <p style="margin-top:1rem;font-size:1.1rem;">AR Insurance Explorer</p>
+          <button class="btn" onclick="startARExperience()">Launch AR Camera</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card" onclick="showPage('vehicle')">
+        <i class="fas fa-car feature-icon"></i>
+        <h3>Vehicle Insurance</h3>
+        <p>Play our car damage simulation game and learn about vehicle insurance claims</p>
+      </div>
+      <div class="feature-card" onclick="showPage('health')">
+        <i class="fas fa-heartbeat feature-icon"></i>
+        <h3>Health Insurance</h3>
+        <p>Interactive health coverage calculator with real-time premium estimation</p>
+      </div>
+      <div class="feature-card" onclick="showPage('scanner')">
+        <i class="fas fa-camera feature-icon"></i>
+        <h3>AR Object Scanner</h3>
+        <p>Scan any object with your camera to get instant insurance information</p>
+      </div>
+    </div>
+
+    <div class="interactive-element">
+      <h3>Quick Insurance Quote</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;">
+        <div class="input-group">
+          <label>Insurance Type</label>
+          <select id="quickQuoteType">
+            <option value="vehicle">Vehicle Insurance</option>
+            <option value="health">Health Insurance</option>
+            <option value="life">Life Insurance</option>
+            <option value="travel">Travel Insurance</option>
+            <option value="property">Property Insurance</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Your Age</label>
+          <input type="number" id="quickQuoteAge" min="18" max="80" value="30" />
+        </div>
+        <div class="input-group">
+          <label>Coverage Amount (₹)</label>
+          <input type="number" id="quickQuoteCoverage" min="100000" max="50000000" value="1000000" />
+        </div>
+      </div>
+      <button class="btn" onclick="calculateQuickQuote()">Get Instant Quote</button>
+      <div id="quickQuoteResult" style="margin-top:1rem;font-size:1.1rem;text-align:center;"></div>
+    </div>
+  </div>
+
+  <!-- VEHICLE PAGE -->
+  <div class="page" id="vehicle">
+    <h2 style="text-align:center;font-size:2.2rem;margin-bottom:1.2rem;">Vehicle Insurance Game</h2>
+
+    <div class="interactive-element">
+      <h3>Car Damage Simulation Game</h3>
+      <p>Drive the car and avoid obstacles. If you crash, we'll show you how insurance helps!</p>
+
+      <div class="game-canvas" id="carGameCanvas">
+        <div class="car" id="gameCar"></div>
+        <div style="position:absolute;top:10px;left:10px;color:white;">Score: <span id="gameScore">0</span> | Speed: <span id="gameSpeed">50</span> km/h</div>
+        <div style="position:absolute;top:10px;right:10px;color:white;">Health: <span id="carHealth">100</span>%</div>
+      </div>
+
+      <div style="text-align:center;margin:1rem 0;">
+        <button class="btn" id="startGameBtn" onclick="startCarGame()">Start Driving</button>
+        <button class="btn" onclick="pauseCarGame()">Pause</button>
+        <p style="margin-top:0.5rem;">Use A and D keys or click buttons to steer</p>
+        <button class="btn" onclick="steerLeft()" style="background:linear-gradient(45deg,#ff4444,#cc0000);">← Left</button>
+        <button class="btn" onclick="steerRight()" style="background:linear-gradient(45deg,#ff4444,#cc0000);">Right →</button>
+      </div>
+
+      <div id="crashReport" style="display:none;background:rgba(255,0,0,0.2);padding:1rem;border-radius:15px;margin-top:1rem;">
+        <h3>🚨 Accident Report</h3>
+        <div id="crashDetails"></div>
+        <div id="insuranceClaim" style="background:rgba(0,255,0,0.2);padding:1rem;border-radius:10px;margin-top:0.8rem;">
+          <h4>Insurance Claim Process:</h4>
+          <ul style="text-align:left;margin:0.6rem 0;">
+            <li>✅ Report accident immediately</li>
+            <li>✅ Take photos of damage</li>
+            <li>✅ File FIR if required</li>
+            <li>✅ Submit claim documents</li>
+            <li>✅ Garage inspection</li>
+            <li>✅ Claim settlement</li>
+          </ul>
+          <p><strong>Estimated Settlement Time:</strong> 7–15 days</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>Premium Calculator</h3>
+        <div class="input-group">
+          <label>Vehicle Type</label>
+          <select id="vehicleType">
+            <option value="car">Car</option>
+            <option value="bike">Motorcycle</option>
+            <option value="truck">Truck</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>Vehicle Value (₹)</label>
+          <input type="number" id="vehicleValue" value="500000" />
+        </div>
+        <div class="input-group">
+          <label>Driver Experience (Years)</label>
+          <input type="number" id="driverExperience" min="0" max="50" value="5" />
+        </div>
+        <button class="btn" onclick="calculateVehiclePremium()">Calculate Premium</button>
+        <div id="vehiclePremiumResult" style="margin-top:0.8rem;font-size:1.05rem;"></div>
+      </div>
+
+      <div class="feature-card">
+        <h3>Claim Simulator</h3>
+        <p>Select damage type and see claim amount:</p>
+        <button class="btn" onclick="simulateClaim('minor',15000)">Minor Scratch</button>
+        <button class="btn" onclick="simulateClaim('major',75000)">Major Accident</button>
+        <button class="btn" onclick="simulateClaim('total',500000)">Total Loss</button>
+        <div id="claimResult" style="margin-top:0.8rem;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HEALTH PAGE -->
+  <div class="page" id="health">
+    <h2 style="text-align:center;font-size:2.2rem;margin-bottom:1.2rem;">Health Insurance Calculator</h2>
+
+    <div class="interactive-element">
+      <h3>Personalized Health Premium Calculator</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;">
+        <div class="input-group"><label>Age</label><input type="number" id="healthAge" min="18" max="80" value="30" /></div>
+        <div class="input-group"><label>Gender</label>
+          <select id="healthGender"><option value="male">Male</option><option value="female">Female</option></select></div>
+        <div class="input-group"><label>Sum Insured</label>
+          <select id="healthCoverage">
+            <option value="300000">₹3 Lakh</option>
+            <option value="500000">₹5 Lakh</option>
+            <option value="1000000">₹10 Lakh</option>
+            <option value="2500000">₹25 Lakh</option>
+            <option value="5000000">₹50 Lakh</option>
+          </select>
+        </div>
+        <div class="input-group"><label>Smoking Status</label>
+          <select id="smokingStatus"><option value="no">Non-Smoker</option><option value="yes">Smoker</option></select></div>
+        <div class="input-group"><label>Pre-existing Conditions</label>
+          <select id="preExisting"><option value="none">None</option><option value="diabetes">Diabetes</option><option value="hypertension">Hypertension</option><option value="heart">Heart Disease</option></select></div>
+        <div class="input-group"><label>BMI</label><input type="number" id="bmi" min="15" max="50" value="24" step="0.1" /></div>
+      </div>
+      <button class="btn" onclick="calculateHealthPremium()">Calculate Premium</button>
+
+      <div id="healthPremiumResult" style="margin-top:1rem;display:none;">
+        <div style="background:rgba(0,255,0,0.1);border:1px solid rgba(0,255,0,0.3);border-radius:15px;padding:1rem;">
+          <h3>Your Health Insurance Quote</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin:0.6rem 0;">
+            <div><h4>Annual Premium</h4><p id="annualPremium" style="font-size:1.6rem;color:#00f5ff;">₹0</p></div>
+            <div><h4>Coverage Amount</h4><p id="coverageAmount" style="font-size:1.6rem;color:#00ff00;">₹0</p></div>
+            <div><h4>Premium Rate</h4><p id="premiumRate" style="font-size:1.2rem;color:#ffff00;">0%</p></div>
+          </div>
+        </div>
+        <div class="chart-container"><canvas id="healthChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>Hospital Bill Estimator</h3>
+        <div class="input-group"><label>Medical Procedure</label>
+          <select id="medicalProcedure">
+            <option value="consultation">General Consultation - ₹500</option>
+            <option value="blood_test">Blood Tests - ₹2,000</option>
+            <option value="xray">X-Ray - ₹1,500</option>
+            <option value="mri">MRI Scan - ₹8,000</option>
+            <option value="surgery_minor">Minor Surgery - ₹25,000</option>
+            <option value="surgery_major">Major Surgery - ₹150,000</option>
+            <option value="icu">ICU (per day) - ₹5,000</option>
+            <option value="room">Private Room (per day) - ₹2,000</option>
+          </select>
+        </div>
+        <div class="input-group"><label>Number of Days/Sessions</label><input type="number" id="medicalDays" min="1" max="30" value="1" /></div>
+        <button class="btn" onclick="estimateHospitalBill()">Estimate Bill</button>
+        <div id="hospitalBillResult" style="margin-top:0.6rem;"></div>
+      </div>
+
+      <div class="feature-card">
+        <h3>Claim Process Simulator</h3>
+        <p>Experience the health insurance claim process:</p>
+        <div id="claimSteps" style="text-align:left;">
+          <div class="claim-step" data-step="1">
+            <h4>Step 1: Hospital Admission</h4>
+            <button class="btn" onclick="nextClaimStep(2)">Admit to Hospital</button>
+          </div>
+        </div>
+        <div id="claimProgress" style="margin-top:1rem;height:10px;background:rgba(255,255,255,0.2);border-radius:5px;">
+          <div id="claimProgressBar" style="height:100%;background:linear-gradient(45deg,#00f5ff,#ff00ff);border-radius:5px;width:0%;transition:width 0.5s ease;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCANNER PAGE -->
+  <div class="page" id="scanner">
+    <h2 style="text-align:center;font-size:2.2rem;margin-bottom:1.2rem;">AR Object Scanner</h2>
+
+    <div class="scanner-interface">
+      <i class="fas fa-camera" style="font-size:4rem;color:#00f5ff;margin-bottom:1rem;"></i>
+      <h3>Scan Any Object for Insurance Info</h3>
+      <p>Use your camera to scan objects and get instant insurance information</p>
+      <button class="btn" onclick="startARScanner()">Start AR Scanner</button>
+
+      <div class="scanner-result" id="scannerResult">
+        <h3 id="scannedObject">Object Detected</h3>
+        <p id="objectDescription">Description will appear here</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.6rem;">
+          <div><h4>Estimated Value</h4><p id="objectValue" style="font-size:1.2rem;color:#00f5ff;">₹0</p></div>
+          <div><h4>Insurance Premium</h4><p id="objectPremium" style="font-size:1.2rem;color:#00ff00;">₹0/year</p></div>
+        </div>
+        <button class="btn" onclick="getDetailedQuote()" style="margin-top:0.6rem;">Get Detailed Quote</button>
+      </div>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <h3>Upload Document Scanner</h3>
+        <p>Upload images of your insurance documents for analysis</p>
+        <input type="file" accept="image/*" onchange="analyzeDocument(this)" style="margin: 1rem 0;" />
+        <div id="documentAnalysis" style="margin-top: 0.6rem; text-align: left;"></div>
+      </div>
+
+      <div class="feature-card">
+        <h3>Object Database</h3>
+        <p>Common objects and their insurance information:</p>
+        <div style="text-align:left;margin-top:0.6rem;">
+          <div onclick="showObjectInfo('smartphone')" style="padding:0.5rem;margin:0.3rem 0;background:rgba(255,255,255,0.1);border-radius:5px;cursor:pointer;">📱 Smartphone - Starting ₹500/year</div>
+          <div onclick="showObjectInfo('laptop')" style="padding:0.5rem;margin:0.3rem 0;background:rgba(255,255,255,0.1);border-radius:5px;cursor:pointer;">💻 Laptop - Starting ₹900/year</div>
+          <div onclick="showObjectInfo('camera')" style="padding:0.5rem;margin:0.3rem 0;background:rgba(255,255,255,0.1);border-radius:5px;cursor:pointer;">📷 Camera - Starting ₹800/year</div>
+          <div onclick="showObjectInfo('bicycle')" style="padding:0.5rem;margin:0.3rem 0;background:rgba(255,255,255,0.1);border-radius:5px;cursor:pointer;">🚲 Bicycle - Starting ₹400/year</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Placeholder pages to avoid nav errors -->
+  <div class="page" id="learn"><h2 style="margin-top:4rem;">Learn (coming soon)</h2></div>
+  <div class="page" id="life"><h2 style="margin-top:4rem;">Life (coming soon)</h2></div>
+  <div class="page" id="travel"><h2 style="margin-top:4rem;">Travel (coming soon)</h2></div>
+  <div class="page" id="property"><h2 style="margin-top:4rem;">Property (coming soon)</h2></div>
+  <div class="page" id="games"><h2 style="margin-top:4rem;">Games (coming soon)</h2></div>
+  <div class="page" id="calculator"><h2 style="margin-top:4rem;">Calculator (coming soon)</h2></div>
+
+  <script>
+    /* -------------------- Shared Utilities -------------------- */
+    const pages = document.querySelectorAll('.page');
+    function showPage(id){ pages.forEach(p=>p.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo({top:0,behavior:'smooth'}); }
+
+    function notify(msg, timeout=2500){ const n=document.getElementById('notification'); n.textContent=msg; n.classList.add('show'); setTimeout(()=>n.classList.remove('show'), timeout); }
+
+    /* -------------------- AR + Object Recognition -------------------- */
+    let mediaStream = null; // active camera stream
+    let mobilenetModel = null;
+    let scanIntervalId = null;
+
+    async function ensureModel(){
+      if(!mobilenetModel){
+        notify('Loading AI model…');
+        mobilenetModel = await mobilenet.load({version:2, alpha:1.0});
+        notify('Model ready. Point at an object!');
+      }
+      return mobilenetModel;
+    }
+
+    async function startCamera(videoEl){
+      try{
+        const constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false };
+        mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoEl.srcObject = mediaStream;
+        await videoEl.play();
+        return true;
+      }catch(err){
+        console.error(err);
+        notify('Camera access failed. Use HTTPS and allow camera permissions.');
+        return false;
+      }
+    }
+
+    function stopCamera(){
+      if(mediaStream){ mediaStream.getTracks().forEach(t=>t.stop()); mediaStream = null; }
+      if(scanIntervalId){ clearInterval(scanIntervalId); scanIntervalId = null; }
+    }
+
+    // AR Overlay experience (full-screen)
+    async function startARExperience(){
+      const overlay = document.getElementById('arOverlay');
+      const video = document.getElementById('arCamera');
+      const panel = document.getElementById('arInfoPanel');
+      overlay.style.display = 'flex';
+      const ok = await startCamera(video);
+      if(!ok){ overlay.style.display='none'; return; }
+      await ensureModel();
+
+      // periodic classification
+      panel.classList.add('show');
+      const title = document.getElementById('arTitle');
+      const desc = document.getElementById('arDescription');
+      const prem = document.getElementById('arPremium');
+
+      scanIntervalId = setInterval(async ()=>{
+        try{
+          const predictions = await mobilenetModel.classify(video);
+          if(predictions && predictions[0]){
+            const {className, probability} = predictions[0];
+            title.textContent = `Detected: ${className}`;
+            desc.textContent = `Confidence: ${(probability*100).toFixed(1)}%`;
+            const {value, premium} = estimateFromClass(className, probability);
+            prem.innerHTML = `Est. Value: <strong>₹${value.toLocaleString('en-IN')}</strong> · Premium: <strong>₹${premium.toLocaleString('en-IN')}/year</strong>`;
+          }
+        }catch(e){ console.warn(e); }
+      }, 900);
+    }
+
+    function closeAR(){ document.getElementById('arOverlay').style.display = 'none'; stopCamera(); }
+
+    // Scanner inside the Scanner page (re-uses AR overlay for camera and streams results into the card)
+    async function startARScanner(){
+      showPage('scanner');
+      await startARExperience();
+      // additionally mirror summary into scanner result card
+      const sr = document.getElementById('scannerResult'); sr.style.display = 'block';
+      const objEl = document.getElementById('scannedObject');
+      const descEl = document.getElementById('objectDescription');
+      const valEl = document.getElementById('objectValue');
+      const premEl = document.getElementById('objectPremium');
+
+      if(scanIntervalId) clearInterval(scanIntervalId);
+      const video = document.getElementById('arCamera');
+      await ensureModel();
+      scanIntervalId = setInterval(async ()=>{
+        try{
+          const predictions = await mobilenetModel.classify(video);
+          if(predictions && predictions[0]){
+            const {className, probability} = predictions[0];
+            objEl.textContent = className;
+            descEl.textContent = `Confidence ${(probability*100).toFixed(1)}% · Move closer for better results`;
+            const {value, premium} = estimateFromClass(className, probability);
+            valEl.textContent = `₹${value.toLocaleString('en-IN')}`;
+            premEl.textContent = `₹${premium.toLocaleString('en-IN')}/year`;
+          }
+        }catch(e){ console.warn(e); }
+      }, 900);
+    }
+
+    function estimateFromClass(className, probability){
+      // Simple heuristic mapping to value & premium tiers
+      const lc = className.toLowerCase();
+      let base = 5000;
+      if(lc.includes('laptop')||lc.includes('notebook')) base = 60000;
+      else if(lc.includes('cell phone')||lc.includes('mobile')||lc.includes('smartphone')) base = 25000;
+      else if(lc.includes('camera')) base = 40000;
+      else if(lc.includes('bicycle')||lc.includes('mountain bike')) base = 15000;
+      else if(lc.includes('car')) base = 600000;
+      else if(lc.includes('tv')||lc.includes('monitor')) base = 30000;
+      const value = Math.round(base * (0.75 + probability));
+      const premium = Math.round(value * 0.03); // 3%/year illustrative
+      return { value, premium };
+    }
+
+    function getDetailedQuote(){ notify('A detailed quote would collect brand, model, purchase date, invoice, and past claims.'); }
+
+    /* -------------------- Quick Quote -------------------- */
+    function calculateQuickQuote(){
+      const type = document.getElementById('quickQuoteType').value;
+      const age = parseInt(document.getElementById('quickQuoteAge').value||'0',10);
+      const cover = parseInt(document.getElementById('quickQuoteCoverage').value||'0',10);
+      let rate = 0.012; // 1.2%
+      if(type==='health') rate = 0.018 + (age>45?0.01:0);
+      if(type==='life') rate = 0.008 + (age>40?0.004:0);
+      if(type==='travel') rate = 0.005;
+      if(type==='property') rate = 0.009;
+      const premium = Math.max(500, Math.round(cover*rate/12));
+      document.getElementById('quickQuoteResult').textContent = `Estimated Monthly Premium: ₹${premium.toLocaleString('en-IN')} (illustrative)`;
+    }
+
+    /* -------------------- Car Game -------------------- */
+    const game = {
+      running:false, speed:5, score:0, health:100, lane:1, lanes:3, obstacles:[], lines:[], loop:null
+    };
+
+    function startCarGame(){
+      const canvas = document.getElementById('carGameCanvas');
+      const car = document.getElementById('gameCar');
+      game.running = true; game.speed = 6; game.score = 0; game.health = 100; game.obstacles = []; game.lines = [];
+      updateHUD();
+      positionCar();
+      spawnRoadLines();
+      spawnObstacles();
+      if(game.loop) cancelAnimationFrame(game.loop);
+      const step = ()=>{ if(!game.running) return; tick(); game.loop = requestAnimationFrame(step); };
+      step();
+      notify('Drive safe! Avoid red blocks.');
+    }
+
+    function pauseCarGame(){ game.running = false; cancelAnimationFrame(game.loop); }
+
+    function positionCar(){
+      const canvas = document.getElementById('carGameCanvas');
+      const car = document.getElementById('gameCar');
+      const laneWidth = canvas.clientWidth / game.lanes;
+      car.style.left = `${(laneWidth*game.lane)+(laneWidth/2)}px`;
+      car.style.transform = 'translateX(-50%)';
+    }
+
+    function steerLeft(){ game.lane = Math.max(0, game.lane-1); positionCar(); }
+    function steerRight(){ game.lane = Math.min(game.lanes-1, game.lane+1); positionCar(); }
+    window.addEventListener('keydown', e=>{ if(e.key==='a'||e.key==='ArrowLeft') steerLeft(); if(e.key==='d'||e.key==='ArrowRight') steerRight(); });
+
+    function spawnObstacles(){
+      const canvas = document.getElementById('carGameCanvas');
+      const laneWidth = canvas.clientWidth / game.lanes;
+      for(let i=0;i<4;i++){
+        const el = document.createElement('div'); el.className='obstacle';
+        const lane = Math.floor(Math.random()*game.lanes);
+        el.style.left = `${(laneWidth*lane)+(laneWidth/2)-20}px`;
+        el.style.top = `${-i*160}px`;
+        canvas.appendChild(el);
+        game.obstacles.push(el);
+      }
+    }
+
+    function spawnRoadLines(){
+      const canvas = document.getElementById('carGameCanvas');
+      for(let i=0;i<8;i++){
+        const line = document.createElement('div'); line.className='road-line';
+        line.style.top = `${i*60}px`; canvas.appendChild(line); game.lines.push(line);
+      }
+    }
+
+    function tick(){
+      const canvas = document.getElementById('carGameCanvas');
+      const car = document.getElementById('gameCar');
+      const carRect = car.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+
+      // Move lines
+      game.lines.forEach(l=>{ const t = parseFloat(l.style.top||'0'); let nt = t + game.speed*2; if(nt>canvas.clientHeight) nt=-40; l.style.top = `${nt}px`; });
+
+      // Move obstacles & collision
+      game.obstacles.forEach(o=>{
+        const t = parseFloat(o.style.top||'0'); let nt = t + game.speed; o.style.top = `${nt}px`;
+        const oRect = o.getBoundingClientRect();
+        if(intersects(carRect,oRect)) damage(10);
+        if(nt>canvas.clientHeight){ // reset to top
+          nt = -Math.random()*300 - 100; o.style.top = `${nt}px`;
+          const laneWidth = canvas.clientWidth / game.lanes; const lane = Math.floor(Math.random()*game.lanes);
+          o.style.left = `${(laneWidth*lane)+(laneWidth/2)-20}px`;
+          game.score += 10; game.speed = Math.min(14, game.speed+0.05);
+        }
+      });
+
+      updateHUD();
+    }
+
+    function intersects(a,b){ return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom); }
+
+    function damage(x){ game.health = Math.max(0, game.health - x); if(game.health===0) crash(); }
+
+    function crash(){
+      game.running = false; cancelAnimationFrame(game.loop);
+      const details = document.getElementById('crashDetails');
+      const crashCost = 5000 + Math.round(Math.random()*15000);
+      details.innerHTML = `💥 Crash detected at ${new Date().toLocaleTimeString()} · Estimated damage: <strong>₹${crashCost.toLocaleString('en-IN')}</strong>\n`+
+        `<br>Comprehensive policy could cover most repair costs after deductible.`;
+      document.getElementById('crashReport').style.display = 'block';
+      notify('Accident! See report below.');
+    }
+
+    function updateHUD(){
+      document.getElementById('gameScore').textContent = game.score;
+      document.getElementById('gameSpeed').textContent = Math.round(game.speed*10);
+      document.getElementById('carHealth').textContent = game.health;
+    }
+
+    /* -------------------- Vehicle Premium & Claims -------------------- */
+    function calculateVehiclePremium(){
+      const type = document.getElementById('vehicleType').value;
+      const value = parseInt(document.getElementById('vehicleValue').value||'0',10);
+      const exp = parseInt(document.getElementById('driverExperience').value||'0',10);
+      let baseRate = {car:0.018,bike:0.012,truck:0.025}[type] || 0.018;
+      const expDiscount = Math.min(0.005, exp*0.0007);
+      const premium = Math.max(1500, Math.round(value*(baseRate-expDiscount)));
+      document.getElementById('vehiclePremiumResult').innerHTML = `Estimated Annual Premium: <strong>₹${premium.toLocaleString('en-IN')}</strong> (illustrative)`;
+    }
+
+    function simulateClaim(level, cost){
+      let coverage = 0.8; if(level==='minor') coverage=0.6; if(level==='total') coverage=0.9;
+      const deductible = 2000; const payout = Math.max(0, Math.round(cost*coverage - deductible));
+      document.getElementById('claimResult').innerHTML = `Damage Cost: ₹${cost.toLocaleString('en-IN')} · Deductible: ₹${deductible.toLocaleString('en-IN')}<br>`+
+        `Estimated Claim Payout: <strong>₹${payout.toLocaleString('en-IN')}</strong>`;
+    }
+
+    /* -------------------- Health Calculator -------------------- */
+    let healthChart = null;
+    function calculateHealthPremium(){
+      const age = parseInt(document.getElementById('healthAge').value||'0',10);
+      const gender = document.getElementById('healthGender').value;
+      const cover = parseInt(document.getElementById('healthCoverage').value||'0',10);
+      const smoker = document.getElementById('smokingStatus').value==='yes';
+      const pre = document.getElementById('preExisting').value;
+      const bmi = parseFloat(document.getElementById('bmi').value||'24');
+
+      let rate = 0.012 + (age>45?0.006:0) + (age>60?0.008:0);
+      if(smoker) rate += 0.006; if(pre!=='none') rate += 0.004; if(bmi>30) rate += 0.003; if(gender==='male') rate += 0.001;
+      const annual = Math.max(2500, Math.round(cover*rate));
+
+      document.getElementById('annualPremium').textContent = `₹${annual.toLocaleString('en-IN')}`;
+      document.getElementById('coverageAmount').textContent = `₹${cover.toLocaleString('en-IN')}`;
+      document.getElementById('premiumRate').textContent = `${(rate*100).toFixed(2)}%`;
+      document.getElementById('healthPremiumResult').style.display = 'block';
+
+      // Chart: breakdown
+      const components = {
+        Base: cover*0.008,
+        Age: cover*Math.max(0, rate-0.012-(smoker?0.006:0)-(pre!=='none'?0.004:0)-(bmi>30?0.003:0)-(gender==='male'?0.001:0)),
+        Smoker: smoker?cover*0.006:0,
+        PreExisting: pre!=='none'?cover*0.004:0,
+        BMI: bmi>30?cover*0.003:0,
+        GenderAdj: gender==='male'?cover*0.001:0
+      };
+      const ctx = document.getElementById('healthChart').getContext('2d');
+      if(healthChart) healthChart.destroy();
+      healthChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels: Object.keys(components), datasets: [{ label: 'Premium Components (₹)', data: Object.values(components) }] },
+        options: { responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+
+    /* -------------------- Hospital Bill Estimator -------------------- */
+    function estimateHospitalBill(){
+      const proc = document.getElementById('medicalProcedure').value;
+      const days = parseInt(document.getElementById('medicalDays').value||'1',10);
+      const costs = { consultation:500, blood_test:2000, xray:1500, mri:8000, surgery_minor:25000, surgery_major:150000, icu:5000, room:2000 };
+      const base = costs[proc]||0; const total = base * days; const copay = Math.round(total*0.1);
+      const covered = Math.max(0, total-copay);
+      document.getElementById('hospitalBillResult').innerHTML = `Total Estimated Bill: <strong>₹${total.toLocaleString('en-IN')}</strong><br>`+
+        `Illustrative Policy Coverage: <strong>₹${covered.toLocaleString('en-IN')}</strong> (10% co-pay)`;
+    }
+
+    /* -------------------- Claim Process Wizard -------------------- */
+    function nextClaimStep(step){
+      const steps = {
+        2: { title:'Step 2: Cashless Pre-Auth', btn:'Submit Documents', next:3 },
+        3: { title:'Step 3: Treatment / Stay', btn:'Discharge', next:4 },
+        4: { title:'Step 4: Final Settlement', btn:'Done', next:null }
+      };
+      const host = document.getElementById('claimSteps'); host.innerHTML = '';
+      const info = steps[step];
+      const div = document.createElement('div'); div.className='claim-step';
+      div.innerHTML = `<h4>${info.title}</h4>` + (info.next?`<button class=\"btn\" onclick=\"nextClaimStep(${info.next})\">${info.btn}</button>`:`✅ Claim Completed`);
+      host.appendChild(div);
+      const percent = (step-1)/3*100; document.getElementById('claimProgressBar').style.width = `${percent}%`;
+      notify(info.title);
+    }
+
+    /* -------------------- Document Analysis (client-side mock) -------------------- */
+    function analyzeDocument(input){
+      const out = document.getElementById('documentAnalysis'); out.innerHTML = '';
+      if(!input.files || !input.files[0]){ out.textContent = 'No file selected.'; return; }
+      const f = input.files[0];
+      const sizeKB = (f.size/1024).toFixed(1);
+      const url = URL.createObjectURL(f);
+      const img = new Image(); img.onload = ()=>{ URL.revokeObjectURL(url); }; img.src = url; img.style.maxWidth='100%'; img.style.borderRadius='10px'; img.style.marginTop='0.6rem';
+      const hints = document.createElement('div');
+      hints.style.marginTop = '0.6rem';
+      hints.innerHTML = `File: <strong>${f.name}</strong> (${sizeKB} KB)<br>`+
+        `Tips: ensure all corners visible, high contrast, and legible text for best OCR. (Demo does not perform OCR offline).`;
+      out.appendChild(hints); out.appendChild(img);
+    }
+
+    /* -------------------- Object DB quick info -------------------- */
+    function showObjectInfo(key){
+      const map = {
+        smartphone: {v:25000, p:800, text:'Covers screen damage, theft (with FIR), liquid damage (add-on).'},
+        laptop: {v:60000, p:1200, text:'Covers spills, breakdown (extended warranty), theft with invoice.'},
+        camera: {v:40000, p:900, text:'Covers lens damage, accidental drops, theft with proof.'},
+        bicycle: {v:15000, p:500, text:'Covers theft, accident damage; register frame no.'}
+      };
+      const o = map[key]; if(!o) return;
+      const sr = document.getElementById('scannerResult'); sr.style.display='block';
+      document.getElementById('scannedObject').textContent = key.charAt(0).toUpperCase()+key.slice(1);
+      document.getElementById('objectDescription').textContent = map[key].text;
+      document.getElementById('objectValue').textContent = `₹${o.v.toLocaleString('en-IN')}`;
+      document.getElementById('objectPremium').textContent = `₹${o.p.toLocaleString('en-IN')}/year`;
+    }
+
+    // Small UX niceties
+    window.addEventListener('beforeunload', ()=>{ stopCamera(); });
+  </script>
+</body>
+</html>
