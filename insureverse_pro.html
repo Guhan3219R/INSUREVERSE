@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>InsureVerse Pro — AR + Realistic Car Game + Health Tools (Green Ultra UI)</title>
+
+<!-- Icons & Fonts -->
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+
+<style>
+  /* ================= THEME: Light Emerald Glass ================= */
+  :root{
+    --bg1:#e9f8ef; --bg2:#d7f1e0; --ink:#0b2a1a;
+    --brandA:#2bd67c; --brandB:#087f4a; --brandC:#0e8a54;
+    --card:#ffffffee; --line:rgba(8,40,20,.08);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+    background: radial-gradient(1200px 600px at 10% -10%, #f5fff8 0%, transparent 60%),
+                radial-gradient(1200px 600px at 90% 0%, #e6fff1 0%, transparent 60%),
+                linear-gradient(135deg,var(--bg1) 0%, var(--bg2) 100%);
+    color:var(--ink); -webkit-font-smoothing:antialiased;
+  }
+
+  /* Top nav */
+  .navbar{
+    position:sticky; top:0; z-index:1000; height:68px; padding:.6rem 1rem;
+    background:rgba(255,255,255,.75); backdrop-filter: blur(10px);
+    display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--line);
+  }
+  .logo{ font-weight:800; font-size:1.3rem; letter-spacing:.2px;
+    background:linear-gradient(45deg,var(--brandA),var(--brandB));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    display:flex; align-items:center; gap:.5rem;
+  }
+  .logo i{ color:var(--brandA) }
+  .nav-menu{ display:flex; gap:8px; align-items:center; list-style:none }
+  .nav-link{ color:#06402a; text-decoration:none; padding:.45rem .9rem; border-radius:999px; font-weight:600 }
+  .nav-link:hover{ background:rgba(11,42,26,.06); transform:translateY(-1px) }
+  .cta{ background: linear-gradient(45deg,var(--brandA),var(--brandB)); color:#fff; border-radius:999px; padding:.5rem 1rem; font-weight:800; text-decoration:none }
+  .cta:hover{ filter:brightness(1.05) }
+
+  main{ max-width:1200px; margin:0 auto; padding:28px 16px 80px; }
+  .page{ display:none; min-height:calc(100vh - 160px) }
+  .page.active{ display:block }
+
+  /* Hero */
+  .hero{ display:grid; grid-template-columns: 1.2fr .8fr; gap:18px; align-items:center }
+  .hero h1{ font-size: clamp(2rem,3.6vw,3rem); color:#074827; line-height:1.2 }
+  .hero p{ color:#145a3a; opacity:.9 }
+  .hero-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; box-shadow:0 12px 30px rgba(6,64,38,.07) }
+  .badge{ display:inline-flex; align-items:center; gap:.4rem; background:rgba(43,214,124,.12); color:#065233; padding:.35rem .6rem; border-radius:999px; font-weight:700; font-size:.8rem }
+  .badge i{ color:var(--brandA) }
+
+  .btn{ display:inline-flex; align-items:center; gap:.5rem; background:linear-gradient(45deg,var(--brandA),var(--brandB)); color:#fff;
+        border:none; padding:.7rem 1rem; border-radius:999px; font-weight:800; cursor:pointer; margin:.35rem 0 }
+  .btn.secondary{ background:#fff; color:#074827; border:1px solid var(--line); font-weight:700 }
+  .btn.ghost{ background:transparent; color:#074827; border:1px dashed var(--line) }
+  .btn:active{ transform:translateY(1px) }
+  .btn i{opacity:.9}
+
+  /* Cards & grids */
+  .grid{ display:grid; gap:14px }
+  .grid.four{ grid-template-columns: repeat(4,minmax(0,1fr)) }
+  .grid.three{ grid-template-columns: repeat(3,minmax(0,1fr)) }
+  .grid.two{ grid-template-columns: repeat(2,minmax(0,1fr)) }
+  @media (max-width:960px){ .hero{ grid-template-columns:1fr } .grid.four,.grid.three,.grid.two{ grid-template-columns: 1fr } }
+
+  .card{ background:var(--card); border:1px solid var(--line); padding:14px; border-radius:14px; box-shadow:0 8px 26px rgba(6,64,38,.06) }
+  .feature{ text-align:center; cursor:pointer }
+  .feature .ico{ font-size:2rem; color:var(--brandA); margin-bottom:6px }
+  .feature h3{ color:#06402a; margin-bottom:6px }
+
+  /* Scanner Overlay */
+  .ar-overlay{ position:fixed; inset:0; display:none; background:rgba(3,20,12,.65); z-index:1500; align-items:center; justify-content:center }
+  .ar-camera-wrap{ width:100%; height:100%; position:relative }
+  video#arCamera{ width:100%; height:100%; object-fit:cover; display:block }
+  canvas#arDraw{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none }
+  .ar-info{ position:absolute; left:50%; bottom:22px; transform:translateX(-50%); background:rgba(255,255,255,.95); color:#063b28; padding:12px 16px; border-radius:12px; border:1px solid var(--line); min-width:320px; text-align:left }
+  .ar-close{ position:absolute; right:18px; top:18px; background:#fff; border-radius:50%; width:44px; height:44px; border:1px solid var(--line); cursor:pointer }
+
+  /* Game */
+  .game-wrapper{ margin-top:10px; background:linear-gradient(180deg,#e7f9ee,#dff6e9); border-radius:12px; padding:10px; border:1px solid var(--line) }
+  #gameCanvas{ width:100%; height:520px; display:block; border-radius:10px; background:#222; }
+  .hud{ display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; color:#063b28; font-weight:700; margin-top:8px }
+  .touchpad{ display:flex; gap:10px; margin-top:8px; flex-wrap:wrap }
+  .touchpad .btn{ min-width:110px; justify-content:center }
+
+  /* Inputs */
+  label{ display:block; margin-bottom:6px; color:#0b2a1a; font-weight:600 }
+  input[type=number], select { width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); font-size:14px; margin-bottom:8px }
+
+  /* Modal */
+  .modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:1600; background: rgba(2,10,6,.45) }
+  .modal-card{ background:#fff; color:#063b28; border-radius:12px; padding:16px; width:min(880px,95%); border:1px solid var(--line) }
+
+  /* Steps */
+  .steps{ display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 }
+  .step{ display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:rgba(43,214,124,.12); border:1px solid var(--line); font-weight:700; color:#0b2a1a }
+  .step i{ color:var(--brandC) }
+
+  /* Small */
+  @media (max-width:800px){ #gameCanvas{ height:380px } .ar-info{ min-width:260px } }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="navbar">
+  <div class="logo"><i class="fa-solid fa-shield-heart"></i> InsureVerse Pro</div>
+  <ul class="nav-menu">
+    <li><a class="nav-link" href="#" onclick="showPage('home')">Home</a></li>
+    <li><a class="nav-link" href="#" onclick="showPage('scanner')">Scanner</a></li>
+    <li><a class="nav-link" href="#" onclick="showPage('vehicle')">Vehicle</a></li>
+    <li><a class="nav-link" href="#" onclick="showPage('health')">Health</a></li>
+    <li><a class="nav-link" href="#" onclick="showPage('tools')">Tools</a></li>
+    <li><a class="cta" href="#" onclick="showPage('hospital')"><i class="fa-solid fa-hospital"></i> Hospital Finder</a></li>
+  </ul>
+</nav>
+
+<main>
+  <!-- HOME -->
+  <section id="home" class="page active">
+    <div class="hero">
+      <div>
+        <span class="badge"><i class="fa-solid fa-wand-magic-sparkles"></i> Hackathon-Ready</span>
+        <h1 style="margin:8px 0 6px">AR Insurance + Realistic Driving + Health Tools</h1>
+        <p>Scan objects with AI, simulate accidents with a smooth, touch-friendly car game, calculate premiums, and export reports — all in one polished single-page app.</p>
+        <div style="margin-top:10px">
+          <button class="btn" onclick="startARScanner()"><i class="fa-solid fa-camera"></i> Start AR Scanner</button>
+          <button class="btn secondary" onclick="showPage('vehicle')"><i class="fa-solid fa-car-side"></i> Drive Now</button>
+        </div>
+        <div class="steps">
+          <div class="step"><i class="fa-solid fa-car-burst"></i> Crash Reports</div>
+          <div class="step"><i class="fa-solid fa-file-shield"></i> Premium Calculators</div>
+          <div class="step"><i class="fa-solid fa-stethoscope"></i> Health Quotes</div>
+          <div class="step"><i class="fa-solid fa-floppy-disk"></i> Export JSON</div>
+        </div>
+      </div>
+      <div class="hero-card">
+        <div style="text-align:center">
+          <i class="fas fa-camera" style="font-size:36px; color:#2bd67c"></i>
+          <p style="margin-top:8px; color:#074827">Real-time Object Detection · Vehicle premium estimates · Pro car game</p>
+          <div style="margin-top:10px;">
+            <button class="btn" onclick="startARScanner()">Start Scanner</button>
+            <button class="btn secondary" onclick="showPage('vehicle')">Open Vehicle</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid four" style="margin-top:14px">
+      <div class="card feature" onclick="startARScanner()">
+        <div class="ico"><i class="fas fa-search"></i></div>
+        <h3>AR Object Scanner</h3>
+        <p>Detect objects and get instant estimated value & premiums (vehicle flow included).</p>
+      </div>
+      <div class="card feature" onclick="showPage('vehicle')">
+        <div class="ico"><i class="fas fa-car"></i></div>
+        <h3>Vehicle Simulator</h3>
+        <p>Realistic road feel, lane system, obstacles, collisions, crash report.</p>
+      </div>
+      <div class="card feature" onclick="showPage('health')">
+        <div class="ico"><i class="fas fa-heart-pulse"></i></div>
+        <h3>Health & Claims</h3>
+        <p>Clean hospital UI, premiums, step-by-step claim process, mock data.</p>
+      </div>
+      <div class="card feature" onclick="showPage('hospital')">
+        <div class="ico"><i class="fas fa-hospital"></i></div>
+        <h3>Network Hospitals</h3>
+        <p>Find nearby hospitals based on your location (opens maps).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCANNER -->
+  <section id="scanner" class="page">
+    <h2>AR Object Scanner</h2>
+    <div class="card">
+      <p>Press Start to open your camera and detect objects (model loads on demand). Use HTTPS or localhost for camera permissions.</p>
+      <div style="margin-top:8px;">
+        <button class="btn" onclick="startARScanner()"><i class="fa-solid fa-camera"></i> Start AR Scanner</button>
+        <button class="btn secondary" onclick="captureSnapshot()"><i class="fa-solid fa-bolt"></i> Snapshot</button>
+        <button class="btn ghost" onclick="stopAR()"><i class="fa-solid fa-stop"></i> Stop</button>
+      </div>
+
+      <div id="scannerResult" class="card" style="display:none; margin-top:10px">
+        <h3 id="scannedObject">—</h3>
+        <p id="objectDescription">—</p>
+
+        <div class="grid two" style="margin-top:10px">
+          <div>
+            <label>Estimated Value</label>
+            <div id="objectValue" style="font-weight:800; color:#087f4a; font-size:1.1rem">₹0</div>
+          </div>
+          <div>
+            <label>Estimated Premium</label>
+            <div id="objectPremium" style="font-weight:800; color:#2bd67c; font-size:1.1rem">₹0/year</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <button class="btn" onclick="showVehicleModelModal()"><i class="fa-solid fa-car-rear"></i> If vehicle → choose exact model</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Upload document (image) for quick preview</label>
+        <input type="file" id="docInput" accept="image/*" onchange="analyzeDocument(this)">
+        <div id="documentAnalysis" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VEHICLE -->
+  <section id="vehicle" class="page">
+    <h2>Vehicle Simulator & Premiums</h2>
+    <div class="game-wrapper">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div class="hud">
+      <div>Score: <span id="gameScore">0</span></div>
+      <div>Speed: <span id="gameSpeed">0</span> km/h · Health: <span id="carHealth">100</span>%</div>
+    </div>
+
+    <div class="touchpad">
+      <button class="btn" onclick="startCarGame()"><i class="fa-solid fa-play"></i> Start</button>
+      <button class="btn secondary" onclick="pauseCarGame()"><i class="fa-solid fa-pause"></i> Pause</button>
+      <button class="btn" onclick="restartCarGame()"><i class="fa-solid fa-rotate-right"></i> Restart</button>
+      <button class="btn secondary" onclick="showPage('scanner')"><i class="fa-solid fa-camera"></i> Open Scanner</button>
+      <button class="btn secondary" onclick="steerLeft()"><i class="fa-solid fa-arrow-left"></i> Left</button>
+      <button class="btn secondary" onclick="steerRight()">Right <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+
+    <div id="crashReport" class="card" style="display:none; margin-top:12px;">
+      <h3>Accident Report</h3>
+      <div id="crashDetails"></div>
+      <div style="margin-top:8px">
+        <button class="btn" onclick="exportCrashReport()"><i class="fa-solid fa-file-export"></i> Export Report (JSON)</button>
+      </div>
+    </div>
+
+    <div class="grid two" style="margin-top:12px">
+      <div class="card">
+        <h3>Premium Calculator</h3>
+        <div style="text-align:left">
+          <label>Make / Model</label>
+          <select id="calcModel">
+            <option value="toyota_corolla">Toyota Corolla</option>
+            <option value="honda_civic">Honda Civic</option>
+            <option value="bmw_320">BMW 3 Series</option>
+            <option value="audi_a4">Audi A4</option>
+            <option value="maruti_suzuki">Maruti Swift</option>
+          </select>
+          <label>Year of Manufacture</label>
+          <input id="calcYear" type="number" value="2018" min="2000" max="2025">
+          <label>Insured Declared Value (IDV) ₹</label>
+          <input id="calcIDV" type="number" value="500000">
+          <div style="margin-top:8px"><button class="btn" onclick="calcCarPremium()">Calculate</button></div>
+          <div id="calcResult" style="margin-top:8px; font-weight:800"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Claim Simulator</h3>
+        <p>Quick payout scenarios</p>
+        <div style="margin-top:8px">
+          <button class="btn" onclick="simulateClaim('minor',15000)">Minor</button>
+          <button class="btn" onclick="simulateClaim('major',75000)">Major</button>
+          <button class="btn" onclick="simulateClaim('total',500000)">Total Loss</button>
+          <div id="claimResult" style="margin-top:8px; font-weight:800"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HEALTH -->
+  <section id="health" class="page">
+    <h2>Health Insurance — Clean Hospital UI</h2>
+    <div class="grid two">
+      <div class="card">
+        <h3><i class="fa-solid fa-heart-pulse"></i> Health Premium</h3>
+        <label>Age</label><input id="healthAge" type="number" value="30">
+        <label>Sum Insured (₹)</label><input id="healthIDV" type="number" value="500000">
+        <label>Smoker</label><select id="healthSmoker"><option value="no">No</option><option value="yes">Yes</option></select>
+        <div style="margin-top:8px"><button class="btn" onclick="calcHealth()">Calculate</button></div>
+        <div id="healthOut" style="margin-top:8px; font-weight:800"></div>
+      </div>
+
+      <div class="card">
+        <h3><i class="fa-solid fa-file-medical"></i> Claim Process</h3>
+        <div class="steps">
+          <div class="step"><i class="fa-solid fa-user-plus"></i> Admission</div>
+          <div class="step"><i class="fa-solid fa-receipt"></i> Bills</div>
+          <div class="step"><i class="fa-solid fa-shield"></i> Claim</div>
+          <div class="step"><i class="fa-solid fa-circle-check"></i> Approval</div>
+        </div>
+        <div class="grid two" style="margin-top:8px">
+          <div>
+            <label>Hospital Type</label>
+            <select id="hospitalType"><option value="network">Network (cashless)</option><option value="non-network">Non-network</option></select>
+          </div>
+          <div>
+            <label>Bill Amount (₹)</label>
+            <input id="billAmount" type="number" value="120000">
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <button class="btn" onclick="simulateHealthClaim()">Simulate</button>
+          <div id="healthClaimOut" style="margin-top:8px; font-weight:800"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOSPITAL FINDER -->
+  <section id="hospital" class="page">
+    <h2>Network Hospital Finder</h2>
+    <div class="card">
+      <p>Click “Locate Me” to open nearby hospitals in your maps app. (Uses your device location — you’ll be prompted for permission.)</p>
+      <div style="margin-top:8px">
+        <button class="btn" onclick="openNearbyHospitals()"><i class="fa-solid fa-location-crosshairs"></i> Locate Me</button>
+        <button class="btn secondary" onclick="openNearbyHospitals('cashless network hospital')"><i class="fa-solid fa-hospital"></i> Cashless Network</button>
+      </div>
+      <div id="geoOut" style="margin-top:8px; font-weight:700"></div>
+    </div>
+  </section>
+
+  <!-- TOOLS -->
+  <section id="tools" class="page">
+    <h2>Pro Tools</h2>
+    <div class="card">
+      <p>International options and hackathon-ready features:</p>
+      <ul style="margin:8px 0 0 18px;">
+        <li>Multi-currency quote (INR, USD, EUR)</li>
+        <li>Export claim/accident simulation report (JSON)</li>
+        <li>Toggle to "Hackathon Mode" to reveal challenge checklist</li>
+      </ul>
+      <div style="margin-top:8px">
+        <button class="btn" onclick="exportReport()"><i class="fa-solid fa-file-export"></i> Export Sample Report</button>
+        <button class="btn secondary" onclick="toggleHackathonMode()"><i class="fa-solid fa-list-check"></i> Toggle Hackathon Mode</button>
+      </div>
+      <pre id="hackReport" style="display:none; margin-top:8px; background:#fff; color:#063b28; padding:8px; border-radius:8px"></pre>
+    </div>
+  </section>
+</main>
+
+<!-- Vehicle Model Modal (choose exact model) -->
+<div id="vehicleModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="modal-card">
+    <h3>Vehicle Details</h3>
+    <p>If the scanner detected a vehicle, choose make/model/year to refine premium.</p>
+    <div style="display:grid; gap:8px; margin-top:8px">
+      <label>Make</label>
+      <select id="modalMake">
+        <option value="Toyota">Toyota</option>
+        <option value="Honda">Honda</option>
+        <option value="BMW">BMW</option>
+        <option value="Audi">Audi</option>
+        <option value="Maruti">Maruti</option>
+      </select>
+      <label>Model</label>
+      <select id="modalModel">
+        <option value="Corolla">Corolla</option>
+        <option value="Civic">Civic</option>
+        <option value="3 Series">3 Series</option>
+        <option value="A4">A4</option>
+        <option value="Swift">Swift</option>
+      </select>
+      <label>Year</label>
+      <input id="modalYear" type="number" min="2000" max="2025" value="2018">
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button class="btn" onclick="applyVehicleModal()">Apply</button>
+        <button class="btn secondary" onclick="closeVehicleModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AR overlay (video + canvas) -->
+<div id="arOverlay" class="ar-overlay" aria-hidden="true">
+  <div class="ar-camera-wrap">
+    <button class="ar-close" aria-label="Close AR" onclick="stopAR()">✕</button>
+    <video id="arCamera" autoplay playsinline muted></video>
+    <canvas id="arDraw"></canvas>
+    <div class="ar-info" id="arInfo">
+      <div id="arTitle" style="font-weight:800">Scanning…</div>
+      <div id="arDesc" style="margin-top:6px; font-size:14px; color:#074827">Point the camera at the object</div>
+      <div id="arMeta" style="margin-top:8px; font-weight:800; color:#087f4a"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =================== Utilities =================== */
+function showPage(id){ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); const el=document.getElementById(id); if(el) el.classList.add('active'); window.scrollTo({top:0,behavior:'smooth'}); }
+function q(sel){ return document.querySelector(sel) }
+function notify(msg, t=2000){ const old=q('#notif'); if(old) old.remove(); const d=document.createElement('div'); d.id='notif'; d.style.position='fixed'; d.style.right='20px'; d.style.top='84px'; d.style.background='linear-gradient(45deg,#2bd67c,#087f4a)'; d.style.color='#fff'; d.style.padding='10px 14px'; d.style.borderRadius='10px'; d.style.zIndex=1999; d.style.boxShadow='0 10px 24px rgba(6,64,38,.18)'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(),t); }
+
+/* ========== Vehicle dataset for premium calc ========== */
+const VEHICLE_DB = {
+  'toyota_corolla': {display:'Toyota Corolla', baseValue:900000, rate:0.035},
+  'honda_civic': {display:'Honda Civic', baseValue:1100000, rate:0.036},
+  'bmw_320': {display:'BMW 3 Series', baseValue:3200000, rate:0.045},
+  'audi_a4': {display:'Audi A4', baseValue:3500000, rate:0.046},
+  'maruti_suzuki': {display:'Maruti Suzuki Swift', baseValue:650000, rate:0.03}
+};
+
+/* ========== CAR GAME: polished, touch-friendly, with glow headlights ========== */
+(function gameModule(){
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let W, H, dpr = window.devicePixelRatio || 1;
+  function resize(){
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // player & state
+  const state = {
+    lanes:3,
+    laneX:[],
+    player:{ lane:1, w:56, h:110, y:0, speed:0, maxSpeed:16 },
+    obstacles:[],
+    running:false, score:0, health:100, lastTS:0, spawn:0
+  };
+  state.player.y = H - 140;
+
+  function computeLaneX(){
+    const roadW = W*0.64; const roadX = (W - roadW)/2;
+    const laneW = roadW / state.lanes;
+    state.laneX = Array.from({length:state.lanes},(v,i)=> roadX + laneW*i + laneW/2 - state.player.w/2);
+  }
+  computeLaneX();
+
+  function drawRoad(){
+    const roadW = W*0.64; const roadX = (W - roadW)/2;
+    // grass
+    ctx.fillStyle = '#cfeee0';
+    ctx.fillRect(0,0,W,H);
+    // road
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'#3b3b3b'); grad.addColorStop(1,'#232323');
+    ctx.fillStyle = grad;
+    ctx.fillRect(roadX,0,roadW,H);
+    // roadside lines
+    ctx.fillStyle = '#2bd67c';
+    ctx.fillRect(roadX-8,0,8,H);
+    ctx.fillRect(roadX+roadW,0,8,H);
+    // dashed center
+    ctx.fillStyle = '#fff';
+    const dashH = 42; const gap = 32;
+    const cx = W/2 - 4;
+    for(let y = (state.offset||0)%(dashH+gap) - (dashH+gap); y < H; y += dashH + gap){
+      ctx.fillRect(cx, y, 8, dashH);
+    }
+  }
+
+  // car (SVG image)
+  const carSVG = `<svg xmlns='http://www.w3.org/2000/svg' width='120' height='240' viewBox='0 0 120 240'>
+    <defs>
+      <linearGradient id='g1' x1='0' x2='1'><stop offset='0' stop-color='#0bd67c'/><stop offset='1' stop-color='#087f4a'/></linearGradient>
+      <radialGradient id='glow' cx='0.5' cy='1' r='0.8'><stop offset='0' stop-color='rgba(255,255,210,.9)'/><stop offset='1' stop-color='rgba(255,255,210,0)'/></radialGradient>
+    </defs>
+    <rect width='120' height='240' rx='20' fill='url(#g1)' />
+    <rect x='20' y='40' width='80' height='40' rx='8' fill='#fff' opacity='0.12'/>
+    <rect x='14' y='160' width='92' height='18' rx='6' fill='#222' opacity='0.6'/>
+    <circle cx='28' cy='200' r='10' fill='#111' />
+    <circle cx='92' cy='200' r='10' fill='#111' />
+    <ellipse cx='30' cy='18' rx='20' ry='10' fill='url(#glow)' opacity='.8'/>
+    <ellipse cx='90' cy='18' rx='20' ry='10' fill='url(#glow)' opacity='.8'/>
+  </svg>`;
+  const carImg = new Image(); carImg.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(carSVG);
+
+  function spawnObstacle(){
+    const lane = Math.floor(Math.random()*state.lanes);
+    const laneX = state.laneX[lane];
+    const w = 52, h = 52;
+    const kind = Math.random()<0.5?'barrier':'cone';
+    state.obstacles.push({ x: laneX + (state.player.w - w)/2, y:-h - Math.random()*160, w, h, speed: 3 + Math.random()*3, kind });
+  }
+
+  function update(ts){
+    if(!state.lastTS) state.lastTS = ts;
+    const dt = Math.min(40, ts - state.lastTS) / 16.666;
+    state.lastTS = ts;
+    // move center dashed line offset
+    state.offset = (state.offset||0) + (state.player.speed*1.6) * dt;
+
+    // spawn
+    state.spawn += dt;
+    if(state.spawn > Math.max(7.6 - state.score / 70, 2.0)){
+      spawnObstacle(); state.spawn = 0;
+    }
+
+    // update obstacles
+    for(let i=state.obstacles.length-1;i>=0;i--){
+      const o = state.obstacles[i]; o.y += (o.speed + state.player.speed*0.4) * dt;
+      // collision detection with player rect
+      const px = state.laneX[state.player.lane]; const py = state.player.y;
+      const pbox = { x:px, y:py, w:state.player.w, h:state.player.h };
+      const obox = { x:o.x, y:o.y, w:o.w, h:o.h };
+      if(rectIntersect(pbox, obox)){
+        state.health -= 22;
+        state.obstacles.splice(i,1);
+        if(state.health <= 0){ endGame(); return; }
+      } else if(o.y > H+100){
+        state.obstacles.splice(i,1);
+        state.score += 10;
+      }
+    }
+
+    // speed management
+    if(state.running){
+      state.player.speed = Math.min(state.player.maxSpeed, state.player.speed + 0.06*dt*2);
+    } else {
+      state.player.speed = Math.max(0, state.player.speed - 0.12*dt);
+    }
+
+    // draw everything
+    draw();
+
+    // HUD
+    q('#gameScore').textContent = state.score;
+    q('#gameSpeed').textContent = Math.round(state.player.speed*10);
+    q('#carHealth').textContent = Math.max(0,Math.round(state.health));
+
+    if(state.running) requestAnimationFrame(update);
+  }
+
+  function draw(){
+    // clear & draw road
+    ctx.clearRect(0,0,W,H);
+    drawRoad();
+    // obstacles
+    state.obstacles.forEach(o=>{
+      ctx.fillStyle = o.kind==='cone' ? '#f39c12' : '#d94b4b';
+      roundRect(ctx, o.x, o.y, o.w, o.h, 8, true);
+    });
+    // player car image at lane center
+    const px = state.laneX[state.player.lane];
+    const py = state.player.y;
+    ctx.shadowColor = 'rgba(255,255,200,.4)';
+    ctx.shadowBlur = 18;
+    ctx.drawImage(carImg, px - (state.player.w/8), py, state.player.w*1.2, state.player.h);
+    ctx.shadowBlur = 0;
+  }
+
+  function roundRect(ctx,x,y,w,h,r,fill){
+    ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+    if(fill) ctx.fill();
+  }
+
+  function rectIntersect(a,b){
+    return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+  }
+
+  function startCarGame(){
+    if(state.running) return;
+    state.running = true; state.player.speed = 8; state.player.maxSpeed = 14; state.lastTS = 0;
+    requestAnimationFrame(update);
+    notify('Driving — use ← → / A D or on-screen buttons');
+  }
+  function pauseCarGame(){ state.running = false; notify('Game paused'); }
+  function restartCarGame(){
+    state.obstacles=[]; state.score=0; state.health=100; state.player.lane=1; state.running=false;
+    computeLaneX(); state.player.y = H - 140; startCarGame();
+    q('#crashReport').style.display = 'none';
+  }
+  function endGame(){
+    state.running = false;
+    const repair = 30000 + Math.round(Math.random()*120000);
+    const claimId = 'CR-' + Math.random().toString(36).slice(2,8).toUpperCase();
+    q('#crashDetails').innerHTML = `
+      <div>Claim ID: <strong>${claimId}</strong></div>
+      <div>Collision — estimated repair: <strong>₹${repair.toLocaleString('en-IN')}</strong></div>`;
+    q('#crashReport').style.display = 'block';
+    notify('Severe collision — game over');
+  }
+
+  // steering handlers
+  function steerLeft(){ state.player.lane = Math.max(0, state.player.lane - 1); }
+  function steerRight(){ state.player.lane = Math.min(state.lanes-1, state.player.lane + 1); }
+  document.addEventListener('keydown', (e)=> {
+    if(e.key==='ArrowLeft' || e.key==='a' || e.key==='A') steerLeft();
+    if(e.key==='ArrowRight' || e.key==='d' || e.key==='D') steerRight();
+  });
+
+  // expose to window
+  window.startCarGame = startCarGame;
+  window.pauseCarGame = pauseCarGame;
+  window.restartCarGame = restartCarGame;
+  window.steerLeft = steerLeft;
+  window.steerRight = steerRight;
+})();
+
+/* ========== Premium calculators, claims ========== */
+function calcCarPremium(){
+  const key = q('#calcModel').value;
+  const year = parseInt(q('#calcYear').value) || 2020;
+  const idv = parseInt(q('#calcIDV').value) || (VEHICLE_DB[key].baseValue || 500000);
+  const age = Math.max(0, 2025 - year);
+  const baseRate = VEHICLE_DB[key].rate || 0.035;
+  const ageLoad = 1 + Math.min(0.6, age * 0.02);
+  const premium = Math.round(idv * baseRate * ageLoad);
+  q('#calcResult').innerHTML = `${VEHICLE_DB[key].display} (${year}) · Annual Premium: <strong>₹${premium.toLocaleString('en-IN')}</strong>`;
+  notify('Car premium estimated');
+}
+
+function simulateClaim(level, cost){
+  const ded = 5000;
+  const cover = level==='minor'?0.65:level==='major'?0.82:0.93;
+  const payout = Math.max(0, Math.round(cost * cover - ded));
+  q('#claimResult').innerHTML = `Payout estimate: <strong>₹${payout.toLocaleString('en-IN')}</strong>`;
+  notify('Claim simulation ready');
+}
+
+/* ========== Health calculators ========== */
+function calcHealth(){
+  const age = parseInt(q('#healthAge').value||'30',10);
+  const idv = parseInt(q('#healthIDV').value||'500000',10);
+  const smoker = q('#healthSmoker').value === 'yes';
+  let rate = 0.015 + (age>45?0.006:0);
+  if(smoker) rate += 0.006;
+  const premium = Math.round(idv * rate);
+  const policyId = 'HI-' + Math.random().toString(36).slice(2,8).toUpperCase();
+  q('#healthOut').innerHTML = `Annual premium: <strong>₹${premium.toLocaleString('en-IN')}</strong> · Policy Ref: <strong>${policyId}</strong>`;
+  notify('Health premium estimated');
+}
+
+function simulateHealthClaim(){
+  const type = q('#hospitalType').value;
+  const bill = parseInt(q('#billAmount').value||'0',10);
+  const network = type==='network';
+  const copay = network ? 0.05 : 0.15;
+  const deductible = network ? 1000 : 5000;
+  const payout = Math.max(0, Math.round(bill*(1-copay) - deductible));
+  const msg = `Hospital: <strong>${network?'Network (cashless)':'Non-network'}</strong> · Payout: <strong>₹${payout.toLocaleString('en-IN')}</strong> (Co-pay ${Math.round(copay*100)}%, Deductible ₹${deductible})`;
+  q('#healthClaimOut').innerHTML = msg;
+  notify('Health claim simulated');
+}
+
+/* ========== Exporters ========== */
+function exportCrashReport(){
+  const payload = {
+    timestamp: new Date().toISOString(),
+    type: 'accident_report',
+    details: q('#crashDetails').innerText.trim()
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'accident_report.json'; a.click();
+  URL.revokeObjectURL(url);
+  notify('Accident report exported');
+}
+
+function exportReport(){
+  const report = {
+    timestamp: new Date().toISOString(),
+    summary: 'Sample claim export',
+    data: { score: q('#gameScore').textContent, health: q('#carHealth').textContent }
+  };
+  const blob = new Blob([JSON.stringify(report, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'insureverse_report.json'; a.click();
+  URL.revokeObjectURL(url);
+  notify('Report exported');
+}
+
+let hackMode = false;
+function toggleHackathonMode(){
+  hackMode = !hackMode;
+  q('#hackReport').style.display = hackMode ? 'block' : 'none';
+  if(hackMode){
+    q('#hackReport').textContent = `Hackathon Mode Enabled
+Checklist:
+- AR scanning (COCO-SSD)
+- Car game physics & collisions
+- Premium mapping & calculators
+- JSON export
+- Hospital finder with geolocate
+- Touch controls & keyboard`;
+    notify('Hackathon mode ON');
+  } else {
+    q('#hackReport').textContent = '';
+    notify('Hackathon mode OFF');
+  }
+}
+
+/* ========== Geolocation → Maps for hospitals ========== */
+function openNearbyHospitals(query='hospital'){
+  if(!navigator.geolocation){
+    window.open('https://www.google.com/maps/search/' + encodeURIComponent(query),'_blank');
+    return;
+  }
+  q('#geoOut').textContent = 'Locating…';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const {latitude, longitude} = pos.coords;
+    q('#geoOut').textContent = `Your approx. location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    const url = `https://www.google.com/maps/search/${encodeURIComponent(query)}/@${latitude},${longitude},14z`;
+    window.open(url,'_blank');
+  }, err=>{
+    q('#geoOut').textContent = 'Unable to get location: ' + err.message;
+  }, {enableHighAccuracy:true, timeout:8000, maximumAge:10000});
+}
+
+/* ========== AR Object detection (coco-ssd lazy) ========== */
+let model = null, arStream = null, arVideo = null, arCanvas = null, arCtx = null, detectRAF = null;
+const DATASET = {
+  'car': {value: 600000, rate:0.03, desc:'Vehicle detected — choose model for precise premium.'},
+  'cell phone': {value:25000, rate:0.03, desc:'Smartphone — accidental & theft cover recommended.'},
+  'laptop': {value:60000, rate:0.018, desc:'Laptop — liquid & theft protection.'},
+  'camera': {value:30000, rate:0.02, desc:'Camera — lens & body cover.'},
+  'person': {value:500000, rate:0.015, desc:'Health cover suggestion for individual.'}
+};
+
+async function ensureModel(){
+  if(model) return model;
+  if(typeof cocoSsd === 'undefined'){
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js');
+    await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3');
+  }
+  model = await cocoSsd.load({base:'lite_mobilenet_v2'});
+  return model;
+}
+
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s);
+  });
+}
+
+async function startCameraForAR(){
+  arVideo = q('#arCamera'); arCanvas = q('#arDraw'); arCtx = arCanvas.getContext('2d');
+  try{
+    arStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:720}}, audio:false});
+    arVideo.srcObject = arStream;
+    await arVideo.play();
+    arCanvas.width = arVideo.videoWidth;
+    arCanvas.height = arVideo.videoHeight;
+  }catch(e){
+    alert('Camera access failed: ' + e.message + '. Use HTTPS or localhost and allow permission.');
+    throw e;
+  }
+}
+
+async function startARScanner(){
+  showPage('scanner');
+  q('#arOverlay').style.display='flex'; q('#arOverlay').setAttribute('aria-hidden','false');
+  try{
+    await startCameraForAR();
+    await ensureModel();
+    detectLoop();
+    notify('Scanner running');
+  }catch(e){
+    console.error(e);
+    stopAR();
+  }
+}
+
+async function detectLoop(){
+  if(!model) return;
+  const preds = await model.detect(arVideo);
+  arCtx.clearRect(0,0,arCanvas.width, arCanvas.height);
+  if(preds && preds.length){
+    // draw top few boxes
+    for(let i=0;i<Math.min(4, preds.length); i++){
+      const p = preds[i]; drawBox(p);
+    }
+    const best = preds[0];
+    const mapped = mapToData(best.class);
+    q('#arTitle').textContent = `${best.class} · ${(best.score*100).toFixed(0)}%`;
+    q('#arDesc').textContent = mapped.desc;
+    q('#arMeta').innerHTML = `Value: <strong>₹${mapped.value.toLocaleString('en-IN')}</strong> · Est. Premium: <strong>₹${Math.round(mapped.value * mapped.rate).toLocaleString('en-IN')}</strong>/yr`;
+
+    q('#scannerResult').style.display='block';
+    if(best.class.toLowerCase().includes('car')){
+      q('#scannedObject').textContent = 'Car detected';
+      q('#objectDescription').textContent = 'Generic car detected — pick exact make/model for precise premium.';
+    } else {
+      q('#scannedObject').textContent = best.class;
+      q('#objectDescription').textContent = mapped.desc + ` (confidence ${(best.score*100).toFixed(0)}%)`;
+    }
+    q('#objectValue').textContent = `₹${mapped.value.toLocaleString('en-IN')}`;
+    q('#objectPremium').textContent = `₹${Math.round(mapped.value * mapped.rate).toLocaleString('en-IN')}/year`;
+  } else {
+    q('#arTitle').textContent = 'No confident detection';
+    q('#arDesc').textContent = 'Move the camera closer';
+    q('#arMeta').textContent = '';
+  }
+  detectRAF = requestAnimationFrame(detectLoop);
+}
+
+function drawBox(p){
+  const [x,y,w,h] = p.bbox;
+  arCtx.strokeStyle = 'rgba(39,174,96,.95)';
+  arCtx.lineWidth = Math.max(2, Math.floor(p.score*6));
+  arCtx.strokeRect(x, y, w, h);
+  // label
+  arCtx.font = '16px Inter, sans-serif';
+  arCtx.fillStyle = 'rgba(39,174,96,.95)';
+  const label = p.class + ' ' + Math.round(p.score*100)+'%';
+  const tw = arCtx.measureText(label).width + 12;
+  arCtx.fillRect(x, y-22, tw, 20);
+  arCtx.fillStyle = '#fff';
+  arCtx.fillText( label, x+6, y-6);
+}
+
+function mapToData(cls){
+  const key = cls.toLowerCase();
+  for(const k in DATASET){ if(key.includes(k)) return DATASET[k]; }
+  return {value:12000, rate:0.012, desc:'General item — consider contents insurance.'};
+}
+
+function stopAR(){
+  if(detectRAF) cancelAnimationFrame(detectRAF);
+  if(arStream){ arStream.getTracks().forEach(t=>t.stop()); arStream = null; }
+  q('#arOverlay').style.display='none';
+  q('#arOverlay').setAttribute('aria-hidden','true');
+  notify('Scanner stopped');
+}
+
+function captureSnapshot(){
+  if(!q('#arCamera').srcObject){ notify('Start the scanner first'); return; }
+  const tmp = document.createElement('canvas');
+  tmp.width = q('#arCamera').videoWidth; tmp.height = q('#arCamera').videoHeight;
+  const tctx = tmp.getContext('2d'); tctx.drawImage(q('#arCamera'),0,0,tmp.width,tmp.height);
+  const img = new Image();
+  img.src = tmp.toDataURL('image/jpeg');
+  img.onload = async ()=> {
+    if(model){
+      const preds = await model.detect(img);
+      if(preds && preds[0]){
+        const best = preds[0];
+        const mapped = mapToData(best.class);
+        q('#scannerResult').style.display='block';
+        q('#scannedObject').textContent = best.class;
+        q('#objectDescription').textContent = mapped.desc + ` (confidence ${(best.score*100).toFixed(0)}%)`;
+        q('#objectValue').textContent = `₹${mapped.value.toLocaleString('en-IN')}`;
+        q('#objectPremium').textContent = `₹${Math.round(mapped.value*mapped.rate).toLocaleString('en-IN')}/year`;
+        notify('Snapshot analyzed');
+      } else notify('No object detected');
+    } else notify('Model not loaded yet');
+  };
+}
+
+/* ========== Vehicle modal for exact model (when car detected) ========== */
+function showVehicleModelModal(){
+  q('#vehicleModal').style.display='flex'; q('#vehicleModal').setAttribute('aria-hidden','false');
+}
+function closeVehicleModal(){
+  q('#vehicleModal').style.display='none'; q('#vehicleModal').setAttribute('aria-hidden','true');
+}
+function applyVehicleModal(){
+  const make = q('#modalMake').value;
+  const model = q('#modalModel').value;
+  const year = parseInt(q('#modalYear').value||'2018',10);
+  const mapping = { Toyota:'toyota_corolla', Honda:'honda_civic', BMW:'bmw_320', Audi:'audi_a4', Maruti:'maruti_suzuki' };
+  const key = mapping[make] || 'maruti_suzuki';
+  const base = VEHICLE_DB[key] || {baseValue:600000, rate:0.035};
+  const age = Math.max(0, 2025 - year);
+  const idv = Math.max(50000, Math.round(base.baseValue * Math.max(0.35, 1 - age*0.06)));
+  const rate = base.rate;
+  const premium = Math.round(idv * rate * (1 + Math.min(0.6, age*0.02)));
+  q('#scannerResult').style.display='block';
+  q('#scannedObject').textContent = `${make} ${model} (${year})`;
+  q('#objectDescription').textContent = `Detected vehicle refined by user selection.`;
+  q('#objectValue').textContent = `₹${idv.toLocaleString('en-IN')}`;
+  q('#objectPremium').textContent = `₹${premium.toLocaleString('en-IN')}/year`;
+  closeVehicleModal();
+  notify('Vehicle details applied');
+}
+
+/* ========== Document preview ========== */
+function analyzeDocument(input){
+  const out = q('#documentAnalysis'); out.innerHTML = '';
+  if(!input.files || !input.files[0]) return out.textContent = 'No file';
+  const f = input.files[0];
+  const url = URL.createObjectURL(f);
+  out.textContent = 'Previewing ' + f.name + ' — not OCR-scanned (demo mode)';
+  const img = new Image(); img.onload = ()=> URL.revokeObjectURL(url);
+  img.src = url; img.style.maxWidth='100%'; img.style.borderRadius='10px'; img.style.marginTop='8px';
+  out.appendChild(img);
+  notify('Document preview loaded');
+}
+
+/* ========== Wire-up defaults ========== */
+q('#arOverlay').style.display='none';
+q('#vehicleModal').style.display='none';
+</script>
+</body>
+</html>
